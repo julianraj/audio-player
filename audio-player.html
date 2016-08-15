@@ -1,0 +1,271 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../paper-progress/paper-progress.html">
+<link rel="import" href="../paper-slider/paper-slider.html">
+<link rel="import" href="../paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../iron-icons/av-icons.html">
+
+<!--
+`<audio-player>` adds an audio player to your polymer app. 
+
+Example:
+
+    <audio-player src="assets/sample.mp3" title="Sample Audio"></audio-player>
+
+
+### Styling:
+
+To change background color:
+
+    audio-player {
+        --player-background-color: #e91e63;
+    }
+
+To change color of seekbar progress:
+    audio-player {
+        --player-seekbar-active-color: #eaeaea;
+    }
+
+To change fill color of seekbar knob:
+
+    audio-player {
+        --player-seekbar-knob-color: #f8bbd0;
+    }
+
+To change fill color of seekbar knob at start position:
+
+    audio-player {
+        --player-seekbar-knob-start-color: #64ffda;
+    }
+
+The following mixins are available for styling:
+
+Custom property                               | Description                                 | Default
+----------------------------------------------|---------------------------------------------|--------------
+`--player-background-color`                   | The background color for player             | `#3d3d3d`
+`--player-seekbar-active-color`               | The color of seekbar progress               | `#ffffff`
+`--player-seekbar-knob-color`                 | The fill color of seekbar knob              | `#ffffff`
+`--player-seekbar-knob-start-color`           | The fill color of seekbar knob at start     | `#eaeaea`
+
+@demo demo/index.html 
+-->
+
+<dom-module id="audio-player">
+    <template>
+        <style>
+            :host {
+                display: block;
+                --paper-slider-active-color: var(--player-seekbar-active-color, #ffffff);
+                --paper-slider-knob-color: var(--player-seekbar-knob-color, #ffffff);
+                --paper-slider-knob-start-color: var(--player-seekbar-knob-start-color, #eaeaea);
+            }
+
+            #wrapper {
+                color: #fff;
+                background-color: #3d3d3d
+            }
+
+            paper-icon-button {
+                width: 80px;
+                height: 80px;
+            }
+
+            paper-icon-button[hidden] {;
+                display: none;
+            }
+
+            paper-slider {
+                width: 100%;
+            }
+
+            .audio-duration-wrap {
+                overflow: hidden;
+                margin-bottom: 25px;
+            }
+
+            .audio-duration-wrap > div {
+                float: left;
+                display: inline-block;
+            }
+
+            .audio-duration-wrap .audio-title {
+                margin: 20px 0 0 10px;
+            }
+
+            #duration {
+                margin-top: 10px;
+            }
+        </style>
+
+        
+        <div id="wrapper">
+            <div class="audio-duration-wrap">
+                <div on-tap="_playPause">
+                    <paper-icon-button icon="av:play-circle-outline"
+                                       hidden$="{{ _hidePlayIcon(isPlaying, canBePlayed) }}"></paper-icon-button>
+                    <paper-icon-button icon="av:pause-circle-outline" hidden$="{{ !isPlaying }}"></paper-icon-button>
+                </div>
+                <div>
+                    <div class="audio-title">
+                        <label>{{title}}</label>
+                        <audio id="audio" src="{{src}}"></audio>
+                        <div id="duration">
+                            <span class="fit">{{ _getProgress(currentTime) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <paper-slider id="seekbar" value="{{seekbarValue}}"></paper-slider>
+        </div>
+    </template>
+
+    <script>
+        Polymer({
+
+            is: 'audio-player',
+
+            properties: {
+                /**
+                 * URL for the track to be played.
+                 */
+                src: {
+                    type: String
+                },
+
+                /**
+                 * title of the track
+                 */
+                title: {
+                    type: String
+                },
+            },
+
+            listeners: {
+                'audio.loadedmetadata': '_onCanPlay',
+                'audio.playing': '_onPlaying',
+                'audio.pause': '_onPause',
+                'audio.ended': '_onEnd',
+                'audio.error': '_onError',
+                'immediate-value-change': '_onSeekbarPositionChanged',
+                'change': '_onSeekbarPositionChanged'
+            },
+
+            observers: [
+                '_onProgressChanged(percentagePlayed)'
+            ],
+
+            ready: function () {
+                this.isPlaying = false;
+                this.currentTime=0;
+            },
+
+            _onCanPlay: function () {
+                this.canBePlayed = true;
+
+                if (this.timeOffset > 0) {
+                    this.percentagePlayed = this.timeOffset / this.$.audio.duration;
+                }
+            },
+
+            _onPlaying: function () {
+                this.ended = false;
+                this.isPlaying = true;
+                this._startProgressTimer();
+            },
+
+            _onPause: function () {
+                this.isPlaying = false;
+            },
+
+            _onEnd: function () {
+                this.ended = true;
+                this.isPlaying = false;
+                this._stop();
+            },
+
+            _onError: function () {
+                this.title = 'Sorry, can\'t play track: ' + this.title;
+                this.error = true;
+            },
+
+            _onSeekbarPositionChanged: function () {
+                var value = this.$.seekbar.immediateValue;
+                var player = this;
+                if (player.canBePlayed) {
+                    player._updateAudioProgress(value);
+                    if (!player.isPlaying) player.$.audio.play();
+                } else if (player.preload === 'none') {
+                    player.$.audio.load();
+                    player.$.audio.addEventListener('loadedmetadata', function () {
+                        player._updateAudioProgress(value);
+                        if (!player.isPlaying) player.$.audio.play();
+                    }, false);
+                }
+            },
+
+            _startProgressTimer: function () {
+                var player = this;
+                player.timer = {};
+                if (player.timer.sliderUpdateInterval) {
+                    clearInterval(player.timer.sliderUpdateInterval);
+                }
+
+                player.timer.sliderUpdateInterval = setInterval(function () {
+                    if (player.isPlaying) {
+                        player.currentTime = player.$.audio.currentTime;
+                        player.duration = player.$.audio.duration;
+                        player.percentagePlayed = (player.currentTime / player.$.audio.duration) * 100;
+                    } else {
+                        clearInterval(player.timer.sliderUpdateInterval);
+                    }
+                }, 100);
+            },
+
+            _onProgressChanged: function (progress) {
+                if (!this.$.seekbar.pressed) {
+                    this.seekbarValue = progress;
+                }
+            },
+
+            _playPause: function (e) {
+                e.preventDefault();
+                if (this.canBePlayed) {
+                    return this.isPlaying ? this.$.audio.pause() : this.$.audio.play();
+                } else if (this.preload === 'none') {
+                    this.$.audio.load();
+                    this.$.audio.play();
+                }
+            },
+
+
+            /**
+             * Stops the audio playback
+             */
+            _stop: function () {
+                this.$.audio.pause();
+                this.currentTime = this.$.audio.currentTime = 0;
+                this.$.seekbar.value = 0;
+            },
+
+            _convertSecToMin: function (seconds) {
+                if (!seconds || seconds === 0) return '00:00';
+                var minutes = Math.floor(seconds / 60);
+                var secondsToCalc = Math.floor(seconds % 60) + '';
+                return minutes + ':' + (secondsToCalc.length < 2 ? '0' + secondsToCalc : secondsToCalc);
+            },
+
+            _getProgress: function (currentTime) {
+                return this._convertSecToMin(this.currentTime) + " | " + this._convertSecToMin(this.duration);
+            },
+
+            _hidePlayIcon: function (isPlaying, canBePlayed) {
+                return isPlaying ? true : !(canBePlayed || this.preload === 'none');
+            },
+
+            _updateAudioProgress: function (progress) {
+                var audio = this.$.audio;
+                var totalDuration = audio.duration;
+                this.currentTime = audio.currentTime = (progress * totalDuration) / 100;
+            },
+        });
+    </script>
+</dom-module>
