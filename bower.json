@@ -1,7 +1,19 @@
 {
   "name": "audio-player",
+  "version": "0.0.1",
+  "authors": [
+    "Julian Raj Manandhar"
+  ],
   "description": "A polymer element to handle audio playback",
   "main": "audio-player.html",
+  "homepage": "http://julianraj.com.np/audio-player/components/audio-player/",
+  "keywords": [
+    "web-component",
+    "web-components",
+    "polymer",
+    "audio",
+    "player"
+  ],
   "dependencies": {
     "polymer": "Polymer/polymer#^1.4.0",
     "paper-progress": "PolymerElements/paper-progress#^1.0.9",
