@@ -1,3 +1,5 @@
-# \<audio-player\>
+# audio-player
 
-A simple element to handle audio playback
+A simple polymer element to handle audio playback
+
+#####*Reference: http://nadikun.com/code/paper-audio-player/demo/*#####
